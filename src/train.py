@@ -1,22 +1,22 @@
 from __future__ import print_function
 import argparse
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
-from src.models.Siamese import Siamese
+from src.losses.ContrastiveLoss import ContrastiveLoss
+from src.models.SiameseNetwork import SiameseNetwork
 
 
-def train(args, model, device, train_loader, optimizer, epochs, test_loader, scheduler):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, scheduler):
     for epoch in range(1, epochs + 1):
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             output = model(data)
-            loss = F.nll_loss(output, target)
+            loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
@@ -37,14 +37,13 @@ def test(model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
+    print('\nTest set: Accuracy: {}/{} ({:.2f}%)\n'.format(
+        correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
 
@@ -99,11 +98,12 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 
-    model = Siamese().to(device)
+    model = SiameseNetwork().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-    train(args, model, device, train_loader, optimizer, args.epochs, test_loader, scheduler)
+    criterion = ContrastiveLoss()
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, scheduler)
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
