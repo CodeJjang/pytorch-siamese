@@ -27,10 +27,10 @@ class SiameseNetwork(nn.Module):
         x = self.fc2(x)
         return x
 
-    def forward(self, x):
+    def forward(self, x, y=None):
         if not self.training:
             return self._forward_siamese_head(x)
         output_top = self._forward_siamese_head(x)
-        output_bottom = self._forward_siamese_head(x)
+        output_bottom = self._forward_siamese_head(y)
         # output = F.log_softmax(x, dim=1)
         return output_top, output_bottom

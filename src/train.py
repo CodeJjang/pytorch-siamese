@@ -1,27 +1,30 @@
 from __future__ import print_function
 import argparse
+import os
 import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
+from src.datasets.PairsMNIST import PairsMNIST
 from src.losses.ContrastiveLoss import ContrastiveLoss
 from src.models.SiameseNetwork import SiameseNetwork
+from src.utils.Files import create_dir_path_if_not_exist
 
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, scheduler):
     for epoch in range(1, epochs + 1):
         model.train()
-        for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(device), target.to(device)
+        for batch_idx, (data1, data2, target) in enumerate(train_loader):
+            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
             optimizer.zero_grad()
-            output = model(data)
+            output = model(data1, data2)
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
+                    epoch, batch_idx * len(data1), len(train_loader.dataset),
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
@@ -47,6 +50,24 @@ def test(model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
 
 
+def load_datasets(train_set_cache_path, test_set_cache_path, transform):
+    try:
+        train_set = torch.load(train_set_cache_path)
+    except:
+        train_set = PairsMNIST(root='../data', train=True, download=True,
+                               transform=transform)
+        torch.save(train_set, train_set_cache_path)
+
+    try:
+        test_set = torch.load(test_set_cache_path)
+    except:
+        test_set = datasets.MNIST(root='../data', train=False,
+                                  transform=transform)
+        torch.save(test_set, test_set_cache_path)
+
+    return train_set, test_set
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
@@ -69,11 +90,17 @@ def parse_args():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
+    parser.add_argument('--cache', default='../cache',
+                        help='Cache location')
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    create_dir_path_if_not_exist(args.cache)
+    train_set_cache_path = os.path.join(args.cache, 'train_set.p')
+    test_set_cache_path = os.path.join(args.cache, 'test_set.p')
+
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
     torch.manual_seed(args.seed)
@@ -91,10 +118,8 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_set = datasets.MNIST('../data', train=True, download=True,
-                               transform=transform)
-    test_set = datasets.MNIST('../data', train=False,
-                              transform=transform)
+
+    train_set, test_set = load_datasets(train_set_cache_path, test_set_cache_path, transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 
