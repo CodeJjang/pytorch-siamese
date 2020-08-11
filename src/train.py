@@ -54,14 +54,14 @@ def load_datasets(train_set_cache_path, test_set_cache_path, transform):
     try:
         train_set = torch.load(train_set_cache_path)
     except:
-        train_set = PairsMNIST(root='../data', train=True, download=True,
+        train_set = PairsMNIST(root='data/', train=True, download=True,
                                transform=transform)
         torch.save(train_set, train_set_cache_path)
 
     try:
         test_set = torch.load(test_set_cache_path)
     except:
-        test_set = datasets.MNIST(root='../data', train=False,
+        test_set = datasets.MNIST(root='data/', train=False,
                                   transform=transform)
         torch.save(test_set, test_set_cache_path)
 
@@ -90,16 +90,22 @@ def parse_args():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--cache', default='../cache',
+    parser.add_argument('--cache', default='cache/',
                         help='Cache location')
+    parser.add_argument('--model-path', default='models/',
+                        help='Models location')
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
     create_dir_path_if_not_exist(args.cache)
+    create_dir_path_if_not_exist(args.model_path)
+
     train_set_cache_path = os.path.join(args.cache, 'train_set.p')
     test_set_cache_path = os.path.join(args.cache, 'test_set.p')
+    model_path = os.path.join(args.model_path, 'pairwise_siamese.pt')
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -131,7 +137,7 @@ def main():
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, scheduler)
 
     if args.save_model:
-        torch.save(model.state_dict(), "mnist_cnn.pt")
+        torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':
