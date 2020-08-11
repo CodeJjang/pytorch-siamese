@@ -25,7 +25,7 @@ class PairsMNIST(MNIST):
         self.cls_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
 
         # Init pbar data
-        pbar = tqdm(total=self._sum_class_hist(), desc='Creating MNIST same/not same pairs')
+        pbar = tqdm(total=int(self._sum_class_hist() / 2), desc='Creating MNIST same/not same pairs')
 
         while not self._class_hist_is_empty():
             different_label_indices = self._pick_different_label_samples(self.targets)
@@ -70,7 +70,7 @@ class PairsMNIST(MNIST):
     def _has_min_amount_of_classes(self, min_amount):
         amount_positive_classes = 0
         for cls in self.original_class_hist.keys():
-            if self.original_class_hist[cls] > min_amount:
+            if self.original_class_hist[cls] >= min_amount:
                 amount_positive_classes += 1
         return amount_positive_classes
 
@@ -101,6 +101,9 @@ class PairsMNIST(MNIST):
         while not condition(indices):
             indices = np.random.choice(data_len, 2, replace=False)
         return indices
+
+    def __len__(self):
+        return len(self.data)
 
     def __getitem__(self, index):
         """
