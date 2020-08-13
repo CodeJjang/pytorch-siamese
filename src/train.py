@@ -66,8 +66,8 @@ def get_embeddings(model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            embeddings += output.numpy().tolist()
-            labels += target.numpy().tolist()
+            embeddings += output.cpu().numpy().tolist()
+            labels += target.cpu().numpy().tolist()
     return np.array(embeddings), np.array(labels)
 
 
