@@ -17,6 +17,7 @@ from src.utils.Files import create_dir_path_if_not_exist
 
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, scheduler):
+    curr_time = str(datetime.datetime.now()).replace(' ', '_')
     for epoch in range(1, epochs + 1):
         model.train()
         for batch_idx, (data1, data2, target) in enumerate(train_loader):
@@ -33,6 +34,9 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                 if args.dry_run:
                     break
         # test(model, device, test_loader)
+        embeddings, outputs = get_embeddings(model, device, test_loader)
+        fname = f'{curr_time}_{epoch}'
+        plot_mnist(args.plot_path, fname, embeddings, outputs)
         scheduler.step()
 
 
@@ -67,25 +71,25 @@ def get_embeddings(model, device, test_loader):
     return np.array(embeddings), np.array(labels)
 
 
-def load_datasets(train_set_cache_path, test_set_cache_path, transform):
+def load_datasets(data_dir, train_set_cache_path, test_set_cache_path, transform):
     try:
         train_set = torch.load(train_set_cache_path)
     except:
-        train_set = PairsMNIST(root='data/', train=True, download=True,
+        train_set = PairsMNIST(root=data_dir, train=True, download=True,
                                transform=transform)
         torch.save(train_set, train_set_cache_path)
 
     try:
         test_set = torch.load(test_set_cache_path)
     except:
-        test_set = datasets.MNIST(root='data/', train=False,
+        test_set = datasets.MNIST(root=data_dir, train=False, download=True,
                                   transform=transform)
         torch.save(test_set, test_set_cache_path)
 
     return train_set, test_set
 
 
-def plot_mnist(out_dir, embeddings, labels):
+def plot_mnist(out_dir, fname, embeddings, labels):
     c = ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
          '#ff00ff', '#990000', '#999900', '#009900', '#009999']
 
@@ -93,8 +97,7 @@ def plot_mnist(out_dir, embeddings, labels):
         f = embeddings[np.where(labels == i)]
         plt.plot(f[:, 0], f[:, 1], '.', c=c[i])
     plt.legend(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
-    curr_time = datetime.datetime.now().replace(' ', '_')
-    plt.savefig(os.path.join(out_dir, f'{curr_time}.png'))
+    plt.savefig(os.path.join(out_dir, f'{fname}.png'))
 
 
 def parse_args():
@@ -126,7 +129,9 @@ def parse_args():
     parser.add_argument('--model-path', default='models/',
                         help='Models location')
     parser.add_argument('--plot-path', default='plots/',
-                        help='Models location')
+                        help='Plot location')
+    parser.add_argument('--data-path', default='data/',
+                        help='Data location')
     return parser.parse_args()
 
 
@@ -135,6 +140,8 @@ def main():
 
     create_dir_path_if_not_exist(args.cache)
     create_dir_path_if_not_exist(args.model_path)
+    create_dir_path_if_not_exist(args.plot_path)
+    create_dir_path_if_not_exist(args.data_path)
 
     train_set_cache_path = os.path.join(args.cache, 'train_set.p')
     test_set_cache_path = os.path.join(args.cache, 'test_set.p')
@@ -158,19 +165,18 @@ def main():
         transforms.Normalize((0.1307,), (0.3081,))
     ])
 
-    train_set, test_set = load_datasets(train_set_cache_path, test_set_cache_path, transform)
+    train_set, test_set = load_datasets(args.data_path, train_set_cache_path, test_set_cache_path, transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 
-    # model = SiameseNetwork().to(device)
-    model = SiameseNetwork2().to(device)
+    model = SiameseNetwork().to(device)
+    # model = SiameseNetwork2().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     criterion = ContrastiveLoss()
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, scheduler)
-    embeddings, outputs = get_embeddings(model, device, test_loader)
-    plot_mnist(args.plot_path, embeddings, outputs)
+
     if args.save_model:
         torch.save(model.state_dict(), model_path)
 
