@@ -71,19 +71,19 @@ def get_embeddings(model, device, test_loader):
     return np.array(embeddings), np.array(labels)
 
 
-def load_datasets(data_dir, train_set_cache_path, test_set_cache_path, transform):
+def load_datasets(data_dir, train_set_cache_path, test_set_cache_path, train_transform, test_transform):
     try:
         train_set = torch.load(train_set_cache_path)
     except:
         train_set = PairsMNIST(root=data_dir, train=True, download=True,
-                               transform=transform)
+                               transform=train_transform)
         torch.save(train_set, train_set_cache_path)
 
     try:
         test_set = torch.load(test_set_cache_path)
     except:
         test_set = datasets.MNIST(root=data_dir, train=False, download=True,
-                                  transform=transform)
+                                  transform=test_transform)
         torch.save(test_set, test_set_cache_path)
 
     return train_set, test_set
@@ -102,7 +102,7 @@ def plot_mnist(out_dir, fname, embeddings, labels):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
@@ -160,12 +160,16 @@ def main():
                        'shuffle': True},
                       )
 
-    transform = transforms.Compose([
+    test_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-
-    train_set, test_set = load_datasets(args.data_path, train_set_cache_path, test_set_cache_path, transform)
+    train_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.RandomHorizontalFlip(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    train_set, test_set = load_datasets(args.data_path, train_set_cache_path, test_set_cache_path, train_transform, test_transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 

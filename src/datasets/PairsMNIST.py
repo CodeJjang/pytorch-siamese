@@ -4,12 +4,56 @@ from PIL import Image
 import numpy as np
 from collections import Counter
 from tqdm import tqdm
+import random
 
 
 class PairsMNIST(MNIST):
     def __init__(self, **kwargs):
         super(PairsMNIST, self).__init__(**kwargs)
-        self._split_mnist_to_pairs()
+        # self._split_mnist_to_pairs()
+        self._create_pairs()
+
+    def _create_pairs(self):
+        label = self.targets
+        data = self.data
+        digit_indices = [np.where(label == i)[0] for i in range(10)]
+        x0_data = []
+        x1_data = []
+        label = []
+
+        n = min([len(digit_indices[d]) for d in range(10)]) - 1
+        for d in range(10):
+            # make n pairs with each number
+            for i in range(n):
+                # make pairs of the same class
+                # label is 1
+                z1, z2 = digit_indices[d][i], digit_indices[d][i + 1]
+                # scale data to 0-1
+                # XXX this does ToTensor also
+                x0_data.append(data[z1] / 255.0)
+                x1_data.append(data[z2] / 255.0)
+                label.append(1)
+
+                # make pairs of different classes
+                # since the minimum value is 1, it is not the same class
+                # label is 0
+                inc = random.randrange(1, 10)
+                dn = (d + inc) % 10
+                z1, z2 = digit_indices[d][i], digit_indices[dn][i]
+                # scale data to 0-1
+                # XXX this does ToTensor also
+                x0_data.append(data[z1] / 255.0)
+                x1_data.append(data[z2] / 255.0)
+                label.append(0)
+
+        x0_data = torch.stack(x0_data)
+        x0_data = x0_data.reshape([-1, 1, 28, 28])
+        x1_data = torch.stack(x1_data)
+        x1_data = x1_data.reshape([-1, 1, 28, 28])
+        label = torch.from_numpy(np.array(label))
+
+        self.targets = label
+        self.data = x0_data, x1_data
 
     def _split_mnist_to_pairs(self):
         # Convert to numpy so we can delete
@@ -103,7 +147,7 @@ class PairsMNIST(MNIST):
         return indices
 
     def __len__(self):
-        return len(self.data)
+        return len(self.targets)
 
     def __getitem__(self, index):
         """
@@ -113,10 +157,11 @@ class PairsMNIST(MNIST):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        (img1, img2), target = self.data[index], int(self.targets[index])
+        # (img1, img2), target = self.data[index], int(self.targets[index])
+        img1, img2, target = self.data[0][index], self.data[1][index], int(self.targets[index])
 
-        img1 = Image.fromarray(img1.numpy(), mode='L')
-        img2 = Image.fromarray(img2.numpy(), mode='L')
+        img1 = Image.fromarray(img1.numpy().squeeze(), mode='L')
+        img2 = Image.fromarray(img2.numpy().squeeze(), mode='L')
 
         if self.transform is not None:
             img1 = self.transform(img1)
