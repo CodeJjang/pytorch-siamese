@@ -1,6 +1,9 @@
 from __future__ import print_function
 import argparse
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime
 import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
@@ -9,6 +12,7 @@ from torch.optim.lr_scheduler import StepLR
 from src.datasets.PairsMNIST import PairsMNIST
 from src.losses.ContrastiveLoss import ContrastiveLoss
 from src.models.SiameseNetwork import SiameseNetwork
+from src.models.SiameseNetwork2 import SiameseNetwork2
 from src.utils.Files import create_dir_path_if_not_exist
 
 
@@ -28,7 +32,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
-        test(model, device, test_loader)
+        # test(model, device, test_loader)
         scheduler.step()
 
 
@@ -50,6 +54,19 @@ def test(model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
 
 
+def get_embeddings(model, device, test_loader):
+    model.eval()
+    embeddings = []
+    labels = []
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            embeddings += output.numpy().tolist()
+            labels += target.numpy().tolist()
+    return np.array(embeddings), np.array(labels)
+
+
 def load_datasets(train_set_cache_path, test_set_cache_path, transform):
     try:
         train_set = torch.load(train_set_cache_path)
@@ -68,6 +85,18 @@ def load_datasets(train_set_cache_path, test_set_cache_path, transform):
     return train_set, test_set
 
 
+def plot_mnist(out_dir, embeddings, labels):
+    c = ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
+         '#ff00ff', '#990000', '#999900', '#009900', '#009999']
+
+    for i in range(10):
+        f = embeddings[np.where(labels == i)]
+        plt.plot(f[:, 0], f[:, 1], '.', c=c[i])
+    plt.legend(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
+    curr_time = datetime.datetime.now().replace(' ', '_')
+    plt.savefig(os.path.join(out_dir, f'{curr_time}.png'))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
@@ -76,10 +105,12 @@ def parse_args():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
-                        help='learning rate (default: 1.0)')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+                        help='learning rate (default: 0.01)')
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='MO',
+                        help='momentum (default: 0.9)')
+    parser.add_argument('--gamma', type=float, default=0.1, metavar='M',
+                        help='Learning rate step gamma (default: 0.1)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
@@ -93,6 +124,8 @@ def parse_args():
     parser.add_argument('--cache', default='cache/',
                         help='Cache location')
     parser.add_argument('--model-path', default='models/',
+                        help='Models location')
+    parser.add_argument('--plot-path', default='plots/',
                         help='Models location')
     return parser.parse_args()
 
@@ -129,13 +162,15 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 
-    model = SiameseNetwork().to(device)
-    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    # model = SiameseNetwork().to(device)
+    model = SiameseNetwork2().to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     criterion = ContrastiveLoss()
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, scheduler)
-
+    embeddings, outputs = get_embeddings(model, device, test_loader)
+    plot_mnist(args.plot_path, embeddings, outputs)
     if args.save_model:
         torch.save(model.state_dict(), model_path)
 

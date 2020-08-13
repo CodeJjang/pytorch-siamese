@@ -32,5 +32,4 @@ class SiameseNetwork(nn.Module):
             return self._forward_siamese_head(x)
         output_top = self._forward_siamese_head(x)
         output_bottom = self._forward_siamese_head(y)
-        # output = F.log_softmax(x, dim=1)
         return output_top, output_bottom
