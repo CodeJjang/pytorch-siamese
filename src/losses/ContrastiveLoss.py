@@ -7,8 +7,7 @@ class ContrastiveLoss(torch.nn.Module):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
-    def forward(self, x, y):
-        x_top, x_bottom = x
+    def forward(self, x_top, x_bottom, y):
         # euclidian distance
         diff = x_top - x_bottom
         dist_sq = torch.sum(torch.pow(diff, 2), 1)

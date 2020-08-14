@@ -8,23 +8,32 @@ import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
-
+from torch.nn.modules.distance import PairwiseDistance
 from src.datasets.PairsMNIST import PairsMNIST
 from src.losses.ContrastiveLoss import ContrastiveLoss
 from src.models.SiameseNetwork import SiameseNetwork
 from src.models.SiameseNetwork2 import SiameseNetwork2
+from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
 
 
-def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, original_test_loader, scheduler=None):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, scheduler=None):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     for epoch in range(1, epochs + 1):
         model.train()
-        for batch_idx, (data1, data2, target) in enumerate(train_loader):
+        train_embeddings = []
+        train_original_labels = []
+        for batch_idx, (data1, data2, target, orig_target1, orig_target2) in enumerate(train_loader):
+            orig_target1, orig_target2 = orig_target1.to(device), orig_target2.to(device)
             data1, data2, target = data1.to(device), data2.to(device), target.to(device)
             optimizer.zero_grad()
-            output = model(data1, data2)
-            loss = criterion(output, target)
+            output1, output2 = model(data1, data2)
+
+            # Collect embeddings and original labels for KNN
+            train_embeddings += [output1.cpu().detach().numpy().copy(), output2.cpu().detach().numpy().copy()]
+            train_original_labels += [orig_target1.cpu().numpy().copy(), orig_target2.cpu().numpy().copy()]
+
+            loss = criterion(output1, output2, target)
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
@@ -33,31 +42,33 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
-        test(model, device, test_loader, criterion)
-        embeddings, outputs = get_embeddings(model, device, original_test_loader)
+        test_embeddings, outputs = test(model, knn, device, test_loader, np.concatenate(train_embeddings),
+                                        np.concatenate(train_original_labels))
         fname = f'{curr_time}_{epoch}'
-        plot_mnist(args.plot_path, fname, embeddings, outputs)
+        plot_mnist(args.plot_path, fname, test_embeddings, outputs)
         if scheduler is not None:
             scheduler.step()
 
 
-def test(model, device, test_loader, criterion):
+def test(model, knn, device, test_loader, train_embeddings, train_labels):
     model.eval()
-    test_loss = 0
+    test_embeddings = []
+    test_labels = []
     correct = 0
     with torch.no_grad():
-        for (data1, data2,), target in test_loader:
-            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
-            output = model(data1, data2)
-            test_loss += criterion(output, target).item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            output = output.cpu().numpy()
+            target = target.cpu().numpy()
+            test_embeddings += output.tolist()
+            test_labels += target.tolist()
+            correct = knn(output, target, train_embeddings, train_labels)
 
-    test_loss /= len(test_loader.dataset)
-
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
+    print('\nTest set: Accuracy: {}/{} ({:.0f}%)\n'.format(
+        correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
+    return np.array(test_embeddings), np.array(test_labels)
 
 
 def get_embeddings(model, device, test_loader):
@@ -77,13 +88,10 @@ def load_datasets(data_dir, train_transform, test_transform):
     train_set = PairsMNIST(root=data_dir, train=True, download=True,
                            transform=train_transform)
 
-    test_set = PairsMNIST(root=data_dir, train=False, download=True,
-                          transform=test_transform)
+    test_set = datasets.MNIST(root=data_dir, train=False, download=True,
+                              transform=test_transform)
 
-    original_test_set = datasets.MNIST(root=data_dir, train=False, download=True,
-                                       transform=test_transform)
-
-    return train_set, test_set, original_test_set
+    return train_set, test_set
 
 
 def plot_mnist(out_dir, fname, embeddings, labels):
@@ -127,6 +135,8 @@ def parse_args():
                         help='Plot location')
     parser.add_argument('--data-path', default='data/',
                         help='Data location')
+    parser.add_argument('--knn', type=int, default=3,
+                        help='knn neighbours (default: 3)')
     return parser.parse_args()
 
 
@@ -161,18 +171,18 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_set, test_set, original_test_set = load_datasets(args.data_path, train_transform, test_transform)
+    train_set, test_set = load_datasets(args.data_path, train_transform, test_transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
-    original_test_loader = torch.utils.data.DataLoader(original_test_set, **kwargs)
 
-    model = SiameseNetwork().to(device)
-    # model = SiameseNetwork2().to(device)
+    # model = SiameseNetwork().to(device)
+    model = SiameseNetwork2().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     criterion = ContrastiveLoss()
-    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, original_test_loader, scheduler=None)
+    knn = KNN(args.knn)
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, scheduler=None)
 
     if args.save_model:
         torch.save(model.state_dict(), model_path)
