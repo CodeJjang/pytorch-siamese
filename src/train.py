@@ -58,7 +58,7 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
 
     test_embeddings = np.array(test_embeddings)
     test_labels = np.array(test_labels)
-    correct, acc = knn(test_embeddings, test_labels, train_embeddings, train_labels)
+    correct, acc = knn(train_embeddings, train_labels, test_embeddings, test_labels)
     print('\nTest set: Accuracy: {}/{} ({:.2f}%)\n'.format(
         correct, len(test_loader.dataset),
         100. * acc))
