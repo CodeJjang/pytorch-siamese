@@ -59,16 +59,18 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            output = output.cpu().numpy()
-            target = target.cpu().numpy()
-            test_embeddings += output.tolist()
-            test_labels += target.tolist()
-            correct = knn(output, target, train_embeddings, train_labels)
+            # output = output.cpu().numpy()
+            # target = target.cpu().numpy()
+            test_embeddings += output.cpu().numpy().tolist()
+            test_labels += target.cpu().numpy().tolist()
 
+    test_embeddings = np.array(test_embeddings)
+    test_labels = np.array(test_labels)
+    acc = knn(output, target, train_embeddings, train_labels)
     print('\nTest set: Accuracy: {}/{} ({:.0f}%)\n'.format(
         correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
-    return np.array(test_embeddings), np.array(test_labels)
+        100. * acc))
+    return test_embeddings, test_labels
 
 
 def get_embeddings(model, device, test_loader):
