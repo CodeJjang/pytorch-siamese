@@ -1,35 +1,30 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class SiameseNetwork(nn.Module):
     def __init__(self):
         super(SiameseNetwork, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout2d(0.25)
-        self.dropout2 = nn.Dropout2d(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 2)
+        self.cnn1 = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=5),
+            nn.MaxPool2d(2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=5),
+            nn.MaxPool2d(2, stride=2))
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(64 * 4 * 4, 500),
+            nn.ReLU(inplace=True),
+            nn.Linear(500, 128),
+            nn.Linear(128, 2))
 
     def _forward_siamese_head(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
-        return x
+        output = self.cnn1(x)
+        output = output.view(output.size()[0], -1)
+        output = self.fc1(output)
+        return output
 
-    def forward(self, x, y=None):
-        if y is None:
-            return self._forward_siamese_head(x)
-        output_top = self._forward_siamese_head(x)
-        output_bottom = self._forward_siamese_head(y)
-        return output_top, output_bottom
+    def forward(self, input1, input2=None):
+        if input2 is None:
+            return self._forward_siamese_head(input1)
+        output1 = self._forward_siamese_head(input1)
+        output2 = self._forward_siamese_head(input2)
+        return output1, output2

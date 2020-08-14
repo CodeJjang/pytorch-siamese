@@ -9,5 +9,6 @@ class KNN:
         neigh = KNeighborsClassifier(n_neighbors=self.k)
         neigh.fit(x_train, y_train)
         y_knn = neigh.predict(x_test)
-        acc = (y_knn == y_test).astype(float).mean().item()
-        return acc
+        correct = (y_knn == y_test).astype(float).sum()
+        acc = correct / len(y_test)
+        return correct, acc

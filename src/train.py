@@ -12,7 +12,6 @@ from torch.nn.modules.distance import PairwiseDistance
 from src.datasets.PairsMNIST import PairsMNIST
 from src.losses.ContrastiveLoss import ContrastiveLoss
 from src.models.SiameseNetwork import SiameseNetwork
-from src.models.SiameseNetwork2 import SiameseNetwork2
 from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
 
@@ -59,15 +58,13 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            # output = output.cpu().numpy()
-            # target = target.cpu().numpy()
             test_embeddings += output.cpu().numpy().tolist()
             test_labels += target.cpu().numpy().tolist()
 
     test_embeddings = np.array(test_embeddings)
     test_labels = np.array(test_labels)
-    acc = knn(output, target, train_embeddings, train_labels)
-    print('\nTest set: Accuracy: {}/{} ({:.0f}%)\n'.format(
+    correct, acc = knn(test_embeddings, test_labels, train_embeddings, train_labels)
+    print('\nTest set: Accuracy: {}/{} ({:.2f}%)\n'.format(
         correct, len(test_loader.dataset),
         100. * acc))
     return test_embeddings, test_labels
@@ -177,8 +174,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
 
-    # model = SiameseNetwork().to(device)
-    model = SiameseNetwork2().to(device)
+    model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
