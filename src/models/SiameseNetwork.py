@@ -28,7 +28,7 @@ class SiameseNetwork(nn.Module):
         return x
 
     def forward(self, x, y=None):
-        if not self.training:
+        if y is None:
             return self._forward_siamese_head(x)
         output_top = self._forward_siamese_head(x)
         output_bottom = self._forward_siamese_head(y)

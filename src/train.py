@@ -16,7 +16,7 @@ from src.models.SiameseNetwork2 import SiameseNetwork2
 from src.utils.Files import create_dir_path_if_not_exist
 
 
-def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, scheduler):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, original_test_loader, scheduler=None):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     for epoch in range(1, epochs + 1):
         model.train()
@@ -28,33 +28,35 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
                     epoch, batch_idx * len(data1), len(train_loader.dataset),
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
-        # test(model, device, test_loader)
-        embeddings, outputs = get_embeddings(model, device, test_loader)
+        test(model, device, test_loader, criterion)
+        embeddings, outputs = get_embeddings(model, device, original_test_loader)
         fname = f'{curr_time}_{epoch}'
         plot_mnist(args.plot_path, fname, embeddings, outputs)
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, criterion):
     model.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            pred = output.argmax(dim=1, keepdim=True)
+        for (data1, data2,), target in test_loader:
+            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
+            output = model(data1, data2)
+            test_loss += criterion(output, target).item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
 
-    print('\nTest set: Accuracy: {}/{} ({:.2f}%)\n'.format(
-        correct, len(test_loader.dataset),
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
 
@@ -75,10 +77,13 @@ def load_datasets(data_dir, train_transform, test_transform):
     train_set = PairsMNIST(root=data_dir, train=True, download=True,
                            transform=train_transform)
 
-    test_set = datasets.MNIST(root=data_dir, train=False, download=True,
-                              transform=test_transform)
+    test_set = PairsMNIST(root=data_dir, train=False, download=True,
+                          transform=test_transform)
 
-    return train_set, test_set
+    original_test_set = datasets.MNIST(root=data_dir, train=False, download=True,
+                                       transform=test_transform)
+
+    return train_set, test_set, original_test_set
 
 
 def plot_mnist(out_dir, fname, embeddings, labels):
@@ -150,24 +155,24 @@ def main():
 
     test_transform = transforms.Compose([
         transforms.ToTensor(),
-        # transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1307,), (0.3081,))
     ])
     train_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.RandomHorizontalFlip(),
-        # transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_set, test_set = load_datasets(args.data_path, train_transform, test_transform)
+    train_set, test_set, original_test_set = load_datasets(args.data_path, train_transform, test_transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
+    original_test_loader = torch.utils.data.DataLoader(original_test_set, **kwargs)
 
     model = SiameseNetwork().to(device)
     # model = SiameseNetwork2().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+    # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     criterion = ContrastiveLoss()
-    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, scheduler)
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, original_test_loader, scheduler=None)
 
     if args.save_model:
         torch.save(model.state_dict(), model_path)
