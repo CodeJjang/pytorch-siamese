@@ -7,8 +7,6 @@ import datetime
 import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.optim.lr_scheduler import StepLR
-from torch.nn.modules.distance import PairwiseDistance
 from src.datasets.PairsMNIST import PairsMNIST
 from src.losses.ContrastiveLoss import ContrastiveLoss
 from src.models.SiameseNetwork import SiameseNetwork
@@ -16,7 +14,7 @@ from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
 
 
-def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, scheduler=None):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     for epoch in range(1, epochs + 1):
         model.train()
@@ -45,15 +43,12 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                                         np.concatenate(train_original_labels))
         fname = f'{curr_time}_{epoch}'
         plot_mnist(args.plot_path, fname, test_embeddings, outputs)
-        if scheduler is not None:
-            scheduler.step()
 
 
 def test(model, knn, device, test_loader, train_embeddings, train_labels):
     model.eval()
     test_embeddings = []
     test_labels = []
-    correct = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
@@ -116,8 +111,6 @@ def parse_args():
                         help='learning rate (default: 0.01)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='MO',
                         help='momentum (default: 0.9)')
-    parser.add_argument('--gamma', type=float, default=0.1, metavar='M',
-                        help='Learning rate step gamma (default: 0.1)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
@@ -177,10 +170,9 @@ def main():
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     criterion = ContrastiveLoss()
     knn = KNN(args.knn)
-    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, scheduler=None)
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn)
 
     if args.save_model:
         torch.save(model.state_dict(), model_path)
