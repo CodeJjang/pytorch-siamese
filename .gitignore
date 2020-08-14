@@ -131,4 +131,4 @@ dmypy.json
 data
 cache/
 plots/
-models/
+saved_models/

@@ -129,7 +129,7 @@ def parse_args():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--model-path', default='models/',
+    parser.add_argument('--model-path', default='saved_models/',
                         help='Models location')
     parser.add_argument('--plot-path', default='plots/',
                         help='Plot location')
