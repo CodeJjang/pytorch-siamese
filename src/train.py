@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from src.datasets.PairsMNIST import PairsMNIST
-from src.losses.ContrastiveLoss import ContrastiveLoss
+from src.datasets.TripletsMNIST import TripletsMNIST
 from src.models.SiameseNetwork import SiameseNetwork
 from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
@@ -20,22 +20,22 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         model.train()
         train_embeddings = []
         train_original_labels = []
-        for batch_idx, (data1, data2, target, orig_target1, orig_target2) in enumerate(train_loader):
-            orig_target1, orig_target2 = orig_target1.to(device), orig_target2.to(device)
-            data1, data2, target = data1.to(device), data2.to(device), target.to(device)
+        for batch_idx, (data, original_targets) in enumerate(train_loader):
+            original_targets = original_targets.to(device)
+            data = data.to(device)
             optimizer.zero_grad()
-            output1, output2 = model(data1, data2)
+            output = model(data[0], data[1], data[2])
 
             # Collect embeddings and original labels for KNN
-            train_embeddings += [output1.cpu().detach().numpy().copy(), output2.cpu().detach().numpy().copy()]
-            train_original_labels += [orig_target1.cpu().numpy().copy(), orig_target2.cpu().numpy().copy()]
+            train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
+            train_original_labels += [target.cpu().numpy().copy() for target in original_targets]
 
-            loss = criterion(output1, output2, target)
+            loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
-                    epoch, batch_idx * len(data1), len(train_loader.dataset),
+                    epoch, batch_idx * len(data), len(train_loader.dataset),
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
@@ -79,7 +79,7 @@ def get_embeddings(model, device, test_loader):
 
 
 def load_datasets(data_dir, train_transform, test_transform):
-    train_set = PairsMNIST(root=data_dir, train=True, download=True,
+    train_set = TripletsMNIST(root=data_dir, train=True, download=True,
                            transform=train_transform)
 
     test_set = datasets.MNIST(root=data_dir, train=False, download=True,
@@ -170,7 +170,7 @@ def main():
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    criterion = ContrastiveLoss()
+    criterion = nn.TripletMarginLoss(margin=1.0)
     knn = KNN(args.knn)
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn)
 

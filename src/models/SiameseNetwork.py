@@ -22,9 +22,10 @@ class SiameseNetwork(nn.Module):
         output = self.fc1(output)
         return output
 
-    def forward(self, input1, input2=None):
-        if input2 is None:
+    def forward(self, input1, input2=None, input3=None):
+        if input2 is None and input3 is None:
             return self._forward_siamese_head(input1)
         output1 = self._forward_siamese_head(input1)
         output2 = self._forward_siamese_head(input2)
-        return output1, output2
+        output3 = self._forward_siamese_head(input3)
+        return output1, output2, output3
