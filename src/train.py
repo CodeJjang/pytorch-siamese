@@ -24,7 +24,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             original_targets = original_targets.to(device)
             data = data.to(device)
             optimizer.zero_grad()
-            output = model(data[0], data[1], data[2])
+            output = model(data[:, 0], data[:, 1], data[:, 2])
 
             # Collect embeddings and original labels for KNN
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
@@ -80,7 +80,7 @@ def get_embeddings(model, device, test_loader):
 
 def load_datasets(data_dir, train_transform, test_transform):
     train_set = TripletsMNIST(root=data_dir, train=True, download=True,
-                           transform=train_transform)
+                              transform=train_transform)
 
     test_set = datasets.MNIST(root=data_dir, train=False, download=True,
                               transform=test_transform)
@@ -128,7 +128,9 @@ def parse_args():
     parser.add_argument('--data-path', default='data/',
                         help='Data location')
     parser.add_argument('--knn', type=int, default=3,
-                        help='knn neighbours (default: 3)')
+                        help='KNN neighbours (default: 3)')
+    parser.add_argument('--triplet-margin', type=int, default=0.2,
+                        help='Triplet loss margin (default: 0.2)')
     return parser.parse_args()
 
 
@@ -170,7 +172,7 @@ def main():
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    criterion = nn.TripletMarginLoss(margin=1.0)
+    criterion = nn.TripletMarginLoss(margin=args.triplet_margin, swap=True)
     knn = KNN(args.knn)
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn)
 

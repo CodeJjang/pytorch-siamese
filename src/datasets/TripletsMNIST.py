@@ -46,6 +46,7 @@ class TripletsMNIST(MNIST):
 
         pbar.close()
         new_data = torch.stack(new_data)
+        original_targets = torch.stack(original_targets)
 
         self.original_targets = original_targets
         self.targets = []
