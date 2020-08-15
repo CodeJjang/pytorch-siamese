@@ -129,7 +129,7 @@ def parse_args():
                         help='Data location')
     parser.add_argument('--knn', type=int, default=3,
                         help='KNN neighbours (default: 3)')
-    parser.add_argument('--triplet-margin', type=int, default=0.2,
+    parser.add_argument('--triplet-margin', type=float, default=0.2,
                         help='Triplet loss margin (default: 0.2)')
     return parser.parse_args()
 
