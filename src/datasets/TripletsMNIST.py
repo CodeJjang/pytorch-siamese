@@ -23,14 +23,14 @@ class TripletsMNIST(MNIST):
         pairs_per_class_amount = min([len(classes_indices[d]) for d in range(10)]) - 1
 
         # Init pbar data
-        pbar = tqdm(total=int(orig_classes_len * pairs_per_class_amount), desc='Creating MNIST same/not same pairs')
+        pbar = tqdm(total=int(orig_classes_len * pairs_per_class_amount), desc='Creating MNIST triplet samples')
 
         for cls in range(orig_classes_len):
             for cls_idx in range(pairs_per_class_amount):
                 anchor_label_idx = classes_indices[cls][cls_idx]
                 positive_label_idx = classes_indices[cls][cls_idx + 1]
-                negative_cls_idx = (cls + random.randrange(1, 10)) % 10
-                negative_label_idx = classes_indices[negative_cls_idx][cls_idx]
+                negative_cls = (cls + random.randrange(1, 10)) % 10
+                negative_label_idx = classes_indices[negative_cls][cls_idx]
 
                 # Create a triplet of a,p,n
                 anchor = data[anchor_label_idx]
@@ -48,8 +48,7 @@ class TripletsMNIST(MNIST):
         new_data = torch.stack(new_data)
         original_targets = torch.stack(original_targets)
 
-        self.original_targets = original_targets
-        self.targets = []
+        self.targets = original_targets
         self.data = new_data
 
     def __len__(self):
@@ -68,4 +67,4 @@ class TripletsMNIST(MNIST):
             negative = self.transform(negative)
 
         processed_data = torch.stack([anchor, positive, negative])
-        return processed_data, self.original_targets[index]
+        return processed_data, self.targets[index]

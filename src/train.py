@@ -12,9 +12,10 @@ from src.datasets.TripletsMNIST import TripletsMNIST
 from src.models.SiameseNetwork import SiameseNetwork
 from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
+from src.sampling.BatchHard import BatchHard
 
 
-def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     for epoch in range(1, epochs + 1):
         model.train()
@@ -30,6 +31,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target.cpu().numpy().copy() for target in original_targets]
 
+            output = sampling(output, original_targets)
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
@@ -172,9 +174,10 @@ def main():
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    criterion = nn.TripletMarginLoss(margin=args.triplet_margin, swap=True)
+    criterion = nn.TripletMarginLoss(margin=args.triplet_margin)
+    sampling = BatchHard()
     knn = KNN(args.knn)
-    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn)
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling)
 
     if args.save_model:
         torch.save(model.state_dict(), model_path)
