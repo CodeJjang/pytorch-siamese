@@ -31,6 +31,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target.cpu().numpy().copy() for target in original_targets]
 
+            # if epoch > 1:
             output = sampling(output, original_targets)
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
@@ -103,8 +104,8 @@ def plot_mnist(out_dir, fname, embeddings, labels):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
-    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
-                        help='input batch size for training (default: 64)')
+    parser.add_argument('--batch-size', type=int, default=800, metavar='N',
+                        help='input batch size for training (default: 800)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
@@ -155,8 +156,8 @@ def main():
     kwargs = {'batch_size': args.batch_size}
     if use_cuda:
         kwargs.update({'num_workers': 1,
-                       'pin_memory': True,
-                       'shuffle': True},
+                       'pin_memory': True
+                       },
                       )
 
     test_transform = transforms.Compose([
@@ -169,13 +170,13 @@ def main():
     ])
     train_set, test_set = load_datasets(args.data_path, train_transform, test_transform)
     train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
-    test_loader = torch.utils.data.DataLoader(test_set, **kwargs)
+    test_loader = torch.utils.data.DataLoader(test_set, shuffle=True, **kwargs)
 
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     criterion = nn.TripletMarginLoss(margin=args.triplet_margin)
-    sampling = BatchHard()
+    sampling = BatchHard(margin=args.triplet_margin)
     knn = KNN(args.knn)
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling)
 

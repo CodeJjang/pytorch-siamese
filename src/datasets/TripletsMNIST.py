@@ -9,6 +9,7 @@ import random
 class TripletsMNIST(MNIST):
     def __init__(self, **kwargs):
         super(TripletsMNIST, self).__init__(**kwargs)
+        self._shuffle()
         self._split_mnist_to_triplets()
 
     def _split_mnist_to_triplets(self):
@@ -25,8 +26,8 @@ class TripletsMNIST(MNIST):
         # Init pbar data
         pbar = tqdm(total=int(orig_classes_len * pairs_per_class_amount), desc='Creating MNIST triplet samples')
 
-        for cls in range(orig_classes_len):
-            for cls_idx in range(pairs_per_class_amount):
+        for cls_idx in range(pairs_per_class_amount):
+            for cls in range(orig_classes_len):
                 anchor_label_idx = classes_indices[cls][cls_idx]
                 positive_label_idx = classes_indices[cls][cls_idx + 1]
                 negative_cls = (cls + random.randrange(1, 10)) % 10
@@ -50,6 +51,11 @@ class TripletsMNIST(MNIST):
 
         self.targets = original_targets
         self.data = new_data
+
+    def _shuffle(self):
+        perm = np.random.permutation(len(self.data))
+        self.data = self.data[perm]
+        self.targets = self.targets[perm]
 
     def __len__(self):
         return len(self.data)
