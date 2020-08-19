@@ -13,6 +13,7 @@ from src.models.SiameseNetwork import SiameseNetwork
 from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
 from src.sampling.BatchHard import BatchHard
+from sklearn.manifold import TSNE
 
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
@@ -32,7 +33,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             train_original_labels += [target.cpu().numpy().copy() for target in original_targets]
 
             # if epoch > 1:
-            output = sampling(output, original_targets)
+            # output = sampling(output, original_targets)
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
@@ -46,6 +47,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                                         np.concatenate(train_original_labels))
         fname = f'{curr_time}_{epoch}'
         plot_mnist(args.plot_path, fname, test_embeddings, outputs)
+        plot_mnist(args.plot_path, fname+'_train', test_embeddings, outputs)
 
 
 def test(model, knn, device, test_loader, train_embeddings, train_labels):
@@ -95,12 +97,20 @@ def plot_mnist(out_dir, fname, embeddings, labels):
     c = ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
          '#ff00ff', '#990000', '#999900', '#009900', '#009999']
 
+    plt.figure(0)
     for i in range(10):
         f = embeddings[np.where(labels == i)]
         plt.plot(f[:, 0], f[:, 1], '.', c=c[i])
     plt.legend(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
     plt.savefig(os.path.join(out_dir, f'{fname}.png'))
 
+    tsne = TSNE()
+    tsne_train = tsne.fit_transform(embeddings)
+    plt.figure(1, figsize=(16, 16))
+    for i in range(10):
+        plt.scatter(tsne_train[labels == i, 0], tsne_train[labels == i, 1], c=c[i], label=str(i))
+    plt.legend(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
+    plt.savefig(os.path.join(out_dir, f'{fname}_tsne.png'))
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
