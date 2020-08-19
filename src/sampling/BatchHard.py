@@ -34,18 +34,23 @@ class BatchHard:
             neg = anchors[negative_indices].contiguous().view(batch_size, -1)
             return anchors, pos, neg
         else:
+            # Calc all anchor-positive indices
             all_anchor_positive_indices = self._get_all_anchor_positive_pairs_indices(label_eq_mask, diag_indices)
             anchors = anchors[all_anchor_positive_indices][:, 0, :]
-            pos = anchors[all_anchor_positive_indices][:, 1, :]
+
             labels = labels[all_anchor_positive_indices][:, 0]
             batch_size = len(labels)
             diag_indices = np.diag_indices(batch_size)
             label_eq_mask = labels == labels.T
             distances = self._calc_dist(anchors, anchors).detach().cpu().numpy()
-            negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
+            # Calc hard negative indices
+            if self.semi_hard:
+                negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
+            else:
+                negative_indices = self._get_hard_negative_indices(distances, label_eq_mask, diag_indices)
 
             neg = anchors[negative_indices].contiguous().view(batch_size, -1)
-
+            pos = anchors[all_anchor_positive_indices][:, 1, :]
             return anchors, pos, neg
 
     def _calc_dist(self, emb1, emb2):
