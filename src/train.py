@@ -104,8 +104,8 @@ def plot_mnist(out_dir, fname, embeddings, labels):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch MNIST classifier using a Siamese network')
-    parser.add_argument('--batch-size', type=int, default=800, metavar='N',
-                        help='input batch size for training (default: 800)')
+    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+                        help='input batch size for training (default: 128)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
@@ -134,7 +134,25 @@ def parse_args():
                         help='KNN neighbours (default: 3)')
     parser.add_argument('--triplet-margin', type=float, default=0.2,
                         help='Triplet loss margin (default: 0.2)')
+    parser.add_argument('--semi-hard', action='store_true', default=False,
+                        help='Whether to mine semi hard negative samples')
+    parser.add_argument('--mine-all-anchor-positives', action='store_true', default=False,
+                        help='Whether to mine all anchor positive pairs or just randomly pick them')
     return parser.parse_args()
+
+
+def print_train_stats(args, device):
+    print(f'Using device {device}')
+
+    if args.semi_hard:
+        print('Mining all semi-hard negative samples')
+    else:
+        print('Mining all hard negative samples')
+
+    if args.mine_all_anchor_positives:
+        print('Mining all possible anchor-positive pair combinations')
+    else:
+        print('Mining random anchor-positive pairs')
 
 
 def main():
@@ -151,7 +169,7 @@ def main():
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if use_cuda else "cpu")
-    print(f'Using device {device}')
+    print_train_stats(args, device)
 
     kwargs = {'batch_size': args.batch_size}
     if use_cuda:
@@ -176,7 +194,7 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     criterion = nn.TripletMarginLoss(margin=args.triplet_margin)
-    sampling = BatchHard(margin=args.triplet_margin)
+    sampling = BatchHard(args.triplet_margin, args.semi_hard, args.mine_all_anchor_positives)
     knn = KNN(args.knn)
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling)
 
