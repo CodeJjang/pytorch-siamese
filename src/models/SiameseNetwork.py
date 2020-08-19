@@ -6,8 +6,10 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         self.cnn1 = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=5),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(2, stride=2),
             nn.Conv2d(32, 64, kernel_size=5),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(2, stride=2))
 
         self.fc1 = nn.Sequential(
