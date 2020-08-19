@@ -10,7 +10,7 @@ class BatchHard:
 
     def __call__(self, embeddings, labels):
         # Unroll embeddings and labels
-        anchors = torch.stack([embed for embed in embeddings]).reshape(-1, 2)
+        anchors = torch.stack([embed for embed in embeddings]).reshape(labels.shape[0], -1)
         labels = labels.reshape(-1)
 
         batch_size = labels.shape[0]
@@ -25,7 +25,10 @@ class BatchHard:
             positive_indices = self._get_positive_indices(label_eq_mask, diag_indices)
 
             # Calc hard negative indices
-            negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
+            if self.semi_hard:
+                negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
+            else:
+                negative_indices = self._get_hard_negative_indices(distances, label_eq_mask, diag_indices)
 
             pos = anchors[positive_indices].contiguous().view(batch_size, -1)
             neg = anchors[negative_indices].contiguous().view(batch_size, -1)
