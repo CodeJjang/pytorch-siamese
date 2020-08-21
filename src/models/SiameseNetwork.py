@@ -16,7 +16,8 @@ class SiameseNetwork(nn.Module):
             nn.Linear(64 * 4 * 4, 500),
             nn.ReLU(inplace=True),
             nn.Linear(500, 128),
-            nn.Linear(128, 2))
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 64))
 
     def _forward_siamese_head(self, x):
         output = self.cnn1(x)
