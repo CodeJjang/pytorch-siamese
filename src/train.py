@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
+import pickle
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,8 +18,10 @@ from src.sampling.BatchHard import BatchHard
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
-    best_model = None
-    best_acc = None
+    best_test_acc = None
+    curr_model_pickle = None
+    converged = False
+
     for epoch in range(1, epochs + 1):
         model.train()
         train_embeddings = []
@@ -26,13 +29,15 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         for batch_idx, (data, original_targets) in enumerate(train_loader):
             data = [_data.to(device) for _data in data]
             optimizer.zero_grad()
+            if not converged:
+                curr_model_pickle = pickle.dumps(model)
             output = model(data[0], data[1], data[2])
 
             # Collect embeddings and original labels for KNN
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target for target in original_targets]
 
-            if epoch > 1:
+            if converged:
                 output = sampling(output, original_targets)
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
@@ -46,13 +51,18 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
 
         train_embeddings = np.concatenate(train_embeddings)
         train_original_labels = np.concatenate(train_original_labels)
-        test_embeddings, outputs, test_acc = test(model, knn, device, test_loader, train_embeddings,
-                                                  train_original_labels)
-
+        test_embeddings, test_labels, test_acc = test(model, knn, device, test_loader, train_embeddings,
+                                                      train_original_labels)
         # Plot train and test clusters for debugging
-        fname = f'{curr_time}_{epoch}'
-        plot_mnist(args.plot_path, f'{fname}_train', train_embeddings, train_original_labels)
-        plot_mnist(args.plot_path, f'{fname}_test', test_embeddings, outputs)
+        plot_embeddings_clusters(curr_time, epoch, args.plot_path, train_embeddings, train_original_labels,
+                                 test_embeddings, test_labels)
+
+        if test_acc > best_test_acc:
+            best_test_acc = test_acc
+        elif not converged:
+            converged = True
+            model = pickle.loads(curr_model_pickle)
+            print('Converged on random triplets batch')
 
 
 def test(model, knn, device, test_loader, train_embeddings, train_labels):
@@ -73,6 +83,13 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
         correct, len(test_loader.dataset),
         100. * acc))
     return test_embeddings, test_labels, acc
+
+
+def plot_embeddings_clusters(curr_time, epoch, plot_path, train_embeddings, train_original_labels, test_embeddings,
+                             outputs):
+    fname = f'{curr_time}_{epoch}'
+    plot_mnist(plot_path, f'{fname}_train', train_embeddings, train_original_labels)
+    plot_mnist(plot_path, f'{fname}_test', test_embeddings, outputs)
 
 
 def get_embeddings(model, device, test_loader):
