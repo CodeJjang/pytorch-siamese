@@ -16,7 +16,8 @@ from src.utils.Files import create_dir_path_if_not_exist
 from src.sampling.BatchHard import BatchHard
 
 
-def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
+def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling,
+          print_training_cluster):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     best_test_acc = -np.inf
     curr_model_state = None
@@ -53,7 +54,7 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                                                       train_original_labels)
         # Plot train and test clusters for debugging
         plot_embeddings_clusters(curr_time, epoch, args.plot_path, train_embeddings, train_original_labels,
-                                 test_embeddings, test_labels)
+                                 test_embeddings, test_labels, print_training_cluster)
 
         if not converged:
             if test_acc > best_test_acc:
@@ -86,9 +87,10 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
 
 
 def plot_embeddings_clusters(curr_time, epoch, plot_path, train_embeddings, train_original_labels, test_embeddings,
-                             outputs):
+                             outputs, print_training_cluster):
     fname = f'{curr_time}_{epoch}'
-    plot_mnist(plot_path, f'{fname}_train', train_embeddings, train_original_labels)
+    if print_training_cluster:
+        plot_mnist(plot_path, f'{fname}_train', train_embeddings, train_original_labels)
     plot_mnist(plot_path, f'{fname}_test', test_embeddings, outputs)
 
 
@@ -163,6 +165,8 @@ def parse_args():
                         help='Whether to mine semi hard negative samples')
     parser.add_argument('--mine-all-anchor-positives', action='store_true', default=False,
                         help='Whether to mine all anchor positive pairs or just randomly pick them')
+    parser.add_argument('--print-training-cluster', action='store_true', default=False,
+                        help='Whether to calculate and print training cluster')
     return parser.parse_args()
 
 
@@ -224,7 +228,8 @@ def main():
     criterion = nn.TripletMarginLoss(margin=args.triplet_margin)
     sampling = BatchHard(args.triplet_margin, args.semi_hard, args.mine_all_anchor_positives)
     knn = KNN(args.knn)
-    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling)
+    train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling,
+          args.print_training_cluster)
 
     if args.save_model:
         torch.save(model.state_dict(), model_path)
