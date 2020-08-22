@@ -165,6 +165,8 @@ def parse_args():
                         help='Whether to mine semi hard negative samples')
     parser.add_argument('--print-training-cluster', action='store_true', default=False,
                         help='Whether to calculate and print training cluster')
+    parser.add_argument('--augmentations', action='store_true', default=False,
+                        help='Whether to use data augmentations on train set')
     return parser.parse_args()
 
 
@@ -178,6 +180,9 @@ def print_train_stats(args, device):
         print('Mining all hard negative samples')
 
     print('Mining random anchor-positive pairs')
+
+    if args.augmentations:
+        print('Using image augmentations on train set')
 
     print('------------------')
 
@@ -205,11 +210,19 @@ def main():
                        },
                       )
 
-    test_transform = transforms.Compose([
+    train_transform = [
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
-    ])
-    train_transform = transforms.Compose([
+    ]
+    if args.augmentations:
+        train_transform = [
+            transforms.ToPILImage(),
+            transforms.RandomAffine(degrees=20, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2)
+        ] + train_transform
+
+    train_transform = transforms.Compose(train_transform)
+    test_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
