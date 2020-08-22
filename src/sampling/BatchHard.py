@@ -10,8 +10,8 @@ class BatchHard:
 
     def __call__(self, embeddings, labels):
         # Unroll embeddings and labels
-        anchors = torch.stack([embed for embed in embeddings]).reshape(labels.shape[0], -1)
         labels = labels.reshape(-1)
+        anchors = torch.stack([embed for embed in embeddings]).reshape(labels.shape[0], -1)
 
         batch_size = labels.shape[0]
         distances = self._calc_dist(anchors, anchors).detach().cpu().numpy()

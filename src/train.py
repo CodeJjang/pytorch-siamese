@@ -18,7 +18,7 @@ from src.sampling.BatchHard import BatchHard
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
-    best_test_acc = None
+    best_test_acc = -np.inf
     curr_model_pickle = None
     converged = False
 
@@ -29,16 +29,14 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         for batch_idx, (data, original_targets) in enumerate(train_loader):
             data = [_data.to(device) for _data in data]
             optimizer.zero_grad()
-            if not converged:
-                curr_model_pickle = pickle.dumps(model)
             output = model(data[0], data[1], data[2])
 
             # Collect embeddings and original labels for KNN
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target for target in original_targets]
 
-            if converged:
-                output = sampling(output, original_targets)
+            # if converged:
+            output = sampling(output, torch.stack(original_targets))
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
@@ -57,12 +55,14 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         plot_embeddings_clusters(curr_time, epoch, args.plot_path, train_embeddings, train_original_labels,
                                  test_embeddings, test_labels)
 
-        if test_acc > best_test_acc:
-            best_test_acc = test_acc
-        elif not converged:
-            converged = True
-            model = pickle.loads(curr_model_pickle)
-            print('Converged on random triplets batch')
+        if not converged:
+            if test_acc > best_test_acc:
+                best_test_acc = test_acc
+                curr_model_pickle = pickle.dumps(model)
+            else:
+                converged = True
+                model = pickle.loads(curr_model_pickle)
+                print('Converged on random triplets batch')
 
 
 def test(model, knn, device, test_loader, train_embeddings, train_labels):
@@ -167,6 +167,7 @@ def parse_args():
 
 
 def print_train_stats(args, device):
+    print('------------------')
     print(f'Using device {device}')
 
     if args.semi_hard:
@@ -178,6 +179,8 @@ def print_train_stats(args, device):
         print('Mining all possible anchor-positive pair combinations')
     else:
         print('Mining random anchor-positive pairs')
+
+    print('------------------')
 
 
 def main():
