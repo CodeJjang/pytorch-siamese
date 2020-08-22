@@ -17,6 +17,8 @@ from src.sampling.BatchHard import BatchHard
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
+    best_model = None
+    best_acc = None
     for epoch in range(1, epochs + 1):
         model.train()
         train_embeddings = []
@@ -30,8 +32,8 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target for target in original_targets]
 
-            # if epoch > 1:
-            # output = sampling(output, original_targets)
+            if epoch > 1:
+                output = sampling(output, original_targets)
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
@@ -44,7 +46,8 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
 
         train_embeddings = np.concatenate(train_embeddings)
         train_original_labels = np.concatenate(train_original_labels)
-        test_embeddings, outputs = test(model, knn, device, test_loader, train_embeddings, train_original_labels)
+        test_embeddings, outputs, test_acc = test(model, knn, device, test_loader, train_embeddings,
+                                                  train_original_labels)
 
         # Plot train and test clusters for debugging
         fname = f'{curr_time}_{epoch}'
@@ -69,7 +72,7 @@ def test(model, knn, device, test_loader, train_embeddings, train_labels):
     print('\nTest set: Accuracy: {}/{} ({:.2f}%)\n'.format(
         correct, len(test_loader.dataset),
         100. * acc))
-    return test_embeddings, test_labels
+    return test_embeddings, test_labels, acc
 
 
 def get_embeddings(model, device, test_loader):
@@ -99,12 +102,12 @@ def plot_mnist(out_dir, fname, embeddings, labels):
     c = ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
          '#ff00ff', '#990000', '#999900', '#009900', '#009999']
 
-    plt.figure()
     for i in range(10):
         f = embeddings[np.where(labels == i)]
         plt.plot(f[:, 0], f[:, 1], '.', c=c[i])
     plt.legend(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
     plt.savefig(os.path.join(out_dir, f'{fname}.png'))
+    plt.clf()
 
 
 def parse_args():
