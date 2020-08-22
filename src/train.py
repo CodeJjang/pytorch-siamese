@@ -13,7 +13,6 @@ from src.models.SiameseNetwork import SiameseNetwork
 from src.models.knn import KNN
 from src.utils.Files import create_dir_path_if_not_exist
 from src.sampling.BatchHard import BatchHard
-from src.dataloaders.triplet_img_loader import get_loader
 
 
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
@@ -25,7 +24,6 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         for batch_idx, (data, original_targets) in enumerate(train_loader):
             data = [_data.to(device) for _data in data]
             optimizer.zero_grad()
-            # output = model(data[:, 0], data[:, 1], data[:, 2])
             output = model(data[0], data[1], data[2])
 
             # Collect embeddings and original labels for KNN
@@ -43,9 +41,12 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
                            100. * batch_idx / len(train_loader), loss.item()))
                 if args.dry_run:
                     break
+
         train_embeddings = np.concatenate(train_embeddings)
         train_original_labels = np.concatenate(train_original_labels)
         test_embeddings, outputs = test(model, knn, device, test_loader, train_embeddings, train_original_labels)
+
+        # Plot train and test clusters for debugging
         fname = f'{curr_time}_{epoch}'
         plot_mnist(args.plot_path, f'{fname}_train', train_embeddings, train_original_labels)
         plot_mnist(args.plot_path, f'{fname}_test', test_embeddings, outputs)
@@ -190,10 +191,9 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-    # train_set, test_set = load_datasets(args.data_path, train_transform, test_transform)
-    # train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
-    # test_loader = torch.utils.data.DataLoader(test_set, shuffle=True, **kwargs)
-    train_loader, test_loader = get_loader(args, use_cuda, args.data_path)
+    train_set, test_set = load_datasets(args.data_path, train_transform, test_transform)
+    train_loader = torch.utils.data.DataLoader(train_set, **kwargs)
+    test_loader = torch.utils.data.DataLoader(test_set, shuffle=True, **kwargs)
 
     model = SiameseNetwork().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
