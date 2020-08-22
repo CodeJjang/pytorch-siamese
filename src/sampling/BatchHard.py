@@ -3,10 +3,9 @@ import numpy as np
 
 
 class BatchHard:
-    def __init__(self, margin, semi_hard, mine_all_anchor_positive_pairs):
+    def __init__(self, margin, semi_hard):
         self.margin = margin
         self.semi_hard = semi_hard
-        self.mine_all_anchor_positive_pairs = mine_all_anchor_positive_pairs
 
     def __call__(self, embeddings, labels):
         # Unroll embeddings and labels
@@ -20,38 +19,18 @@ class BatchHard:
         diag_indices = np.diag_indices(batch_size)
         label_eq_mask = labels == labels.T
 
-        if not self.mine_all_anchor_positive_pairs:
-            # Calc all positive indices
-            positive_indices = self._get_positive_indices(label_eq_mask, diag_indices)
+        # Calc all positive indices
+        positive_indices = self._get_positive_indices(label_eq_mask, diag_indices)
 
-            # Calc hard negative indices
-            if self.semi_hard:
-                negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
-            else:
-                negative_indices = self._get_hard_negative_indices(distances, label_eq_mask, diag_indices)
-
-            pos = anchors[positive_indices].contiguous().view(batch_size, -1)
-            neg = anchors[negative_indices].contiguous().view(batch_size, -1)
-            return anchors, pos, neg
+        # Calc hard negative indices
+        if self.semi_hard:
+            negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
         else:
-            # Calc all anchor-positive indices
-            all_anchor_positive_indices = self._get_all_anchor_positive_pairs_indices(label_eq_mask, diag_indices)
-            anchors = anchors[all_anchor_positive_indices][:, 0, :]
+            negative_indices = self._get_hard_negative_indices(distances, label_eq_mask, diag_indices)
 
-            labels = labels[all_anchor_positive_indices][:, 0]
-            batch_size = len(labels)
-            diag_indices = np.diag_indices(batch_size)
-            label_eq_mask = labels == labels.T
-            distances = self._calc_dist(anchors, anchors).detach().cpu().numpy()
-            # Calc hard negative indices
-            if self.semi_hard:
-                negative_indices = self._get_semi_hard_negative_indices(distances, label_eq_mask, diag_indices)
-            else:
-                negative_indices = self._get_hard_negative_indices(distances, label_eq_mask, diag_indices)
-
-            neg = anchors[negative_indices].contiguous().view(batch_size, -1)
-            pos = anchors[all_anchor_positive_indices][:, 1, :]
-            return anchors, pos, neg
+        pos = anchors[positive_indices].contiguous().view(batch_size, -1)
+        neg = anchors[negative_indices].contiguous().view(batch_size, -1)
+        return anchors, pos, neg
 
     def _calc_dist(self, emb1, emb2):
         '''

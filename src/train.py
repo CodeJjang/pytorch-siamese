@@ -163,8 +163,6 @@ def parse_args():
                         help='Triplet loss margin (default: 0.2)')
     parser.add_argument('--semi-hard', action='store_true', default=False,
                         help='Whether to mine semi hard negative samples')
-    parser.add_argument('--mine-all-anchor-positives', action='store_true', default=False,
-                        help='Whether to mine all anchor positive pairs or just randomly pick them')
     parser.add_argument('--print-training-cluster', action='store_true', default=False,
                         help='Whether to calculate and print training cluster')
     return parser.parse_args()
@@ -179,10 +177,7 @@ def print_train_stats(args, device):
     else:
         print('Mining all hard negative samples')
 
-    if args.mine_all_anchor_positives:
-        print('Mining all possible anchor-positive pair combinations')
-    else:
-        print('Mining random anchor-positive pairs')
+    print('Mining random anchor-positive pairs')
 
     print('------------------')
 
@@ -226,7 +221,7 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     criterion = nn.TripletMarginLoss(margin=args.triplet_margin)
-    sampling = BatchHard(args.triplet_margin, args.semi_hard, args.mine_all_anchor_positives)
+    sampling = BatchHard(args.triplet_margin, args.semi_hard)
     knn = KNN(args.knn)
     train(args, model, device, train_loader, optimizer, criterion, args.epochs, test_loader, knn, sampling,
           args.print_training_cluster)
