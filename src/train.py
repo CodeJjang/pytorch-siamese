@@ -216,10 +216,10 @@ def main():
     ]
     if args.augmentations:
         train_transform = [
-            transforms.ToPILImage(),
-            transforms.RandomAffine(degrees=20, translate=(0.1, 0.1), scale=(0.9, 1.1)),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2)
-        ] + train_transform
+                              transforms.ToPILImage(),
+                              transforms.RandomAffine(degrees=20, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+                              transforms.ColorJitter(brightness=0.2, contrast=0.2)
+                          ] + train_transform
 
     train_transform = transforms.Compose(train_transform)
     test_transform = transforms.Compose([
