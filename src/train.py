@@ -19,7 +19,7 @@ from src.sampling.BatchHard import BatchHard
 def train(args, model, device, train_loader, optimizer, criterion, epochs, test_loader, knn, sampling):
     curr_time = str(datetime.datetime.now()).replace(' ', '_')
     best_test_acc = -np.inf
-    curr_model_pickle = None
+    curr_model_state = None
     converged = False
 
     for epoch in range(1, epochs + 1):
@@ -35,8 +35,8 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
             train_embeddings += [out.cpu().detach().numpy().copy() for out in output]
             train_original_labels += [target for target in original_targets]
 
-            # if converged:
-            output = sampling(output, torch.stack(original_targets))
+            if converged:
+                output = sampling(output, torch.stack(original_targets))
             loss = criterion(output[0], output[1], output[2])
             loss.backward()
             optimizer.step()
@@ -58,11 +58,11 @@ def train(args, model, device, train_loader, optimizer, criterion, epochs, test_
         if not converged:
             if test_acc > best_test_acc:
                 best_test_acc = test_acc
-                curr_model_pickle = pickle.dumps(model)
+                curr_model_state = model.state_dict()
             else:
                 converged = True
-                model = pickle.loads(curr_model_pickle)
-                print('Converged on random triplets batch')
+                model.load_state_dict(curr_model_state)
+                print('Converged on random triplets batch\n')
 
 
 def test(model, knn, device, test_loader, train_embeddings, train_labels):
